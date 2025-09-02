@@ -11,9 +11,22 @@ import { Eye, Car, TrendingUp, Server, GraduationCap, CheckCircle } from "lucide
 export default function Dashboard() {
   const [selectedResults, setSelectedResults] = useState<any[]>([]);
 
-  const { data: detectionResults = [] } = useQuery({
+  const { data: detectionResults = [] } = useQuery<Array<{
+    totalPedestrians: number;
+    id: string;
+    filename: string;
+    originalUrl: string;
+    detections: Array<{ bbox: [number, number, number, number]; confidence: number; class: string; }>;
+    processingTime: number;
+    createdAt: string;
+  }>>({
     queryKey: ['/api/detections'],
   });
+
+  // Calculate total pedestrians from actual detection data
+  const totalPedestrians = detectionResults.reduce((sum: number, result) => 
+    sum + (result.totalPedestrians || 0), 0
+  );
 
   const { data: metrics } = useQuery<{
     accuracy: number;
@@ -103,7 +116,7 @@ export default function Dashboard() {
 
           {/* Metrics Sidebar */}
           <div className="space-y-6">
-            <MetricsPanel metrics={metrics} />
+            <MetricsPanel metrics={metrics} totalPedestrians={totalPedestrians} />
             <ModelInfo />
           </div>
         </div>

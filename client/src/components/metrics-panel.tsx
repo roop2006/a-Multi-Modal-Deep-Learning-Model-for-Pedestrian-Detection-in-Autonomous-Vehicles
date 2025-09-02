@@ -11,9 +11,10 @@ interface MetricsPanelProps {
     highRiskDetections: number;
     recentDetections: number;
   };
+  totalPedestrians?: number;
 }
 
-export function MetricsPanel({ metrics }: MetricsPanelProps) {
+export function MetricsPanel({ metrics, totalPedestrians }: MetricsPanelProps) {
   if (!metrics) {
     return (
       <div className="space-y-6">
@@ -111,7 +112,7 @@ export function MetricsPanel({ metrics }: MetricsPanelProps) {
               <span className="text-sm text-foreground">Total Pedestrians</span>
             </div>
             <span className="font-bold text-secondary" data-testid="stat-total-pedestrians">
-              5,832
+              {totalPedestrians || 0}
             </span>
           </div>
           

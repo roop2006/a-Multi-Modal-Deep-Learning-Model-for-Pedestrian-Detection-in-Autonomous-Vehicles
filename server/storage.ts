@@ -26,9 +26,9 @@ export class MemStorage implements IStorage {
       precision: 91.8,
       recall: 89.5,
       avgProcessingTime: 0.21,
-      totalProcessed: 1247,
-      highRiskDetections: 23,
-      recentDetections: 142,
+      totalProcessed: 0,
+      highRiskDetections: 0,
+      recentDetections: 0,
       updatedAt: new Date(),
     };
   }
@@ -47,14 +47,8 @@ export class MemStorage implements IStorage {
     };
     this.detectionResults.set(id, result);
     
-    // Update metrics
-    if (this.systemMetrics) {
-      this.systemMetrics.totalProcessed += 1;
-      this.systemMetrics.recentDetections += 1;
-      this.systemMetrics.avgProcessingTime = 
-        (this.systemMetrics.avgProcessingTime * (this.systemMetrics.totalProcessed - 1) + insertResult.processingTime) / 
-        this.systemMetrics.totalProcessed;
-    }
+    // Update metrics with real calculations
+    this.updateMetricsFromData();
     
     return result;
   }
@@ -70,7 +64,45 @@ export class MemStorage implements IStorage {
   }
 
   async getSystemMetrics(): Promise<SystemMetrics | undefined> {
+    // Ensure metrics are up to date before returning
+    this.updateMetricsFromData();
     return this.systemMetrics;
+  }
+
+  private updateMetricsFromData(): void {
+    if (!this.systemMetrics) return;
+    
+    const allResults = Array.from(this.detectionResults.values());
+    const totalProcessed = allResults.length;
+    
+    // Calculate total pedestrians detected across all images
+    const totalPedestrians = allResults.reduce((sum, result) => sum + result.totalPedestrians, 0);
+    
+    // Calculate average processing time from actual results
+    const avgProcessingTime = totalProcessed > 0 
+      ? allResults.reduce((sum, result) => sum + result.processingTime, 0) / totalProcessed
+      : 0.21;
+    
+    // Calculate recent detections (last 24 hours)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentResults = allResults.filter(result => result.createdAt > oneDayAgo);
+    const recentDetections = recentResults.reduce((sum, result) => sum + result.totalPedestrians, 0);
+    
+    // Calculate high-risk detections (confidence > 0.9)
+    const highRiskDetections = allResults.reduce((count, result) => {
+      const highConfidenceDetections = result.detections.filter(detection => detection.confidence > 0.9);
+      return count + highConfidenceDetections.length;
+    }, 0);
+    
+    // Update metrics with calculated values
+    this.systemMetrics = {
+      ...this.systemMetrics,
+      totalProcessed,
+      avgProcessingTime,
+      recentDetections,
+      highRiskDetections,
+      updatedAt: new Date(),
+    };
   }
 
   async updateSystemMetrics(metrics: InsertSystemMetrics): Promise<SystemMetrics> {
