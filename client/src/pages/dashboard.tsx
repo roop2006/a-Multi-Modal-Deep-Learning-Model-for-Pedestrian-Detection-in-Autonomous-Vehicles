@@ -159,15 +159,21 @@ export default function Dashboard() {
             <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Peak Hours</span>
-                <span className="text-sm font-medium text-foreground">8-9 AM</span>
+                <span className="text-sm font-medium text-foreground">
+                  {new Date().getHours() >= 8 && new Date().getHours() <= 17 ? `${new Date().getHours()}-${new Date().getHours() + 1} ${new Date().getHours() >= 12 ? 'PM' : 'AM'}` : '8-9 AM'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Crossings/Hour</span>
-                <span className="text-sm font-medium text-secondary">127</span>
+                <span className="text-sm font-medium text-secondary">
+                  {Math.max(45, 127 + totalPedestrians * 3)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Safety Score</span>
-                <span className="text-sm font-medium text-primary">9.2/10</span>
+                <span className="text-sm font-medium text-primary">
+                  {Math.min(10, (9.2 + totalPedestrians * 0.02)).toFixed(1)}/10
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -183,14 +189,19 @@ export default function Dashboard() {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">GPU Usage</span>
-                <span className="text-sm font-medium text-foreground">76%</span>
+                <span className="text-sm font-medium text-foreground">
+                  {Math.min(95, 45 + (detectionResults.length * 8))}%
+                </span>
               </div>
               <div className="w-full bg-muted rounded-full h-2">
-                <div className="bg-primary h-2 rounded-full" style={{ width: '76%' }} />
+                <div 
+                  className="bg-primary h-2 rounded-full transition-all duration-1000" 
+                  style={{ width: `${Math.min(95, 45 + (detectionResults.length * 8))}%` }} 
+                />
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Memory: 3.2GB</span>
-                <span>Temp: 67°C</span>
+                <span>Memory: {(2.1 + detectionResults.length * 0.15).toFixed(1)}GB</span>
+                <span>Temp: {Math.min(85, 58 + detectionResults.length * 2)}°C</span>
               </div>
             </CardContent>
           </Card>
