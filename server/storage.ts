@@ -36,10 +36,14 @@ export class MemStorage implements IStorage {
   async createDetectionResult(insertResult: InsertDetectionResult): Promise<DetectionResult> {
     const id = randomUUID();
     const result: DetectionResult = {
-      ...insertResult,
       id,
-      createdAt: new Date(),
+      filename: insertResult.filename,
+      originalUrl: insertResult.originalUrl,
       processedUrl: insertResult.processedUrl || null,
+      detections: insertResult.detections || [],
+      processingTime: insertResult.processingTime,
+      totalPedestrians: insertResult.totalPedestrians || 0,
+      createdAt: new Date(),
     };
     this.detectionResults.set(id, result);
     
