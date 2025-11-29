@@ -1,0 +1,565 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PedDetect AI - Pedestrian Detection for Autonomous Vehicles</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                },
+                fontFamily: {
+                    sans: ["Inter", "system-ui", "sans-serif"],
+                }
+            },
+        }
+    };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --background: hsl(220 30% 4%);
+            --foreground: hsl(210 40% 98%);
+            --card: hsl(220 25% 8%);
+            --card-foreground: hsl(210 40% 98%);
+            --primary: hsl(217 91% 60%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(158 64% 52%);
+            --secondary-foreground: hsl(210 40% 98%);
+            --muted: hsl(220 20% 12%);
+            --muted-foreground: hsl(220 15% 65%);
+            --accent: hsl(188 95% 42%);
+            --accent-foreground: hsl(210 40% 98%);
+            --border: hsl(220 20% 20%);
+            --input: hsl(220 20% 18%);
+            --ring: hsl(217 91% 60%);
+            --radius: 0.75rem;
+        }
+        
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--background);
+            color: var(--foreground);
+        }
+        
+        .detection-overlay {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .bounding-box {
+            position: absolute;
+            border: 2px solid var(--secondary);
+            background: rgba(16, 185, 129, 0.1);
+            pointer-events: none;
+        }
+        
+        .confidence-badge {
+            position: absolute;
+            top: -8px;
+            left: -2px;
+            background: var(--secondary);
+            color: var(--card);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        
+        .upload-zone {
+            border: 2px dashed var(--border);
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.05);
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, var(--card), hsl(220 25% 10%));
+            border: 1px solid var(--border);
+        }
+        
+        .processing-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground min-h-screen">
+    <!-- @COMPONENT: Header -->
+    <header class="border-b border-border bg-card">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                        <i class="fas fa-eye text-primary-foreground text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-foreground">PedDetect AI</h1>
+                        <p class="text-sm text-muted-foreground">Pedestrian Detection for Autonomous Vehicles</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <p class="text-sm font-medium text-foreground">Model: YOLOv8</p>
+                        <p class="text-xs text-muted-foreground">Status: <span class="text-secondary">Active</span></p>
+                    </div>
+                    <div class="w-3 h-3 bg-secondary rounded-full animate-pulse"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header -->
+
+    <main class="container mx-auto px-6 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- @COMPONENT: Upload Section -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-card rounded-lg border border-border p-6">
+                    <h2 class="text-lg font-semibold text-foreground mb-4 flex items-center">
+                        <i class="fas fa-upload text-primary mr-2"></i>
+                        Image Upload & Detection
+                    </h2>
+                    
+                    <div class="upload-zone rounded-lg p-8 text-center mb-6" data-implementation="File upload component with drag-and-drop">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-muted-foreground mb-4"></i>
+                        <p class="text-foreground font-medium mb-2">Drag & drop images here</p>
+                        <p class="text-muted-foreground text-sm mb-4">or click to browse files</p>
+                        <button class="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-blue-600 transition-colors" data-event="click:handleFileUpload">
+                            <i class="fas fa-folder-open mr-2"></i>
+                            Browse Files
+                        </button>
+                        <p class="text-xs text-muted-foreground mt-2">Supports: JPG, PNG, WebP (Max 10MB)</p>
+                    </div>
+
+                    <div class="flex space-x-3">
+                        <button class="bg-secondary text-secondary-foreground px-4 py-2 rounded-md hover:bg-emerald-600 transition-colors flex-1" data-event="click:startDetection">
+                            <i class="fas fa-play mr-2"></i>
+                            Start Detection
+                        </button>
+                        <button class="bg-muted text-muted-foreground px-4 py-2 rounded-md hover:bg-gray-700 transition-colors" data-event="click:clearResults">
+                            <i class="fas fa-trash mr-2"></i>
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- @COMPONENT: Detection Results -->
+                <div class="bg-card rounded-lg border border-border p-6">
+                    <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center">
+                        <i class="fas fa-crosshairs text-accent mr-2"></i>
+                        Detection Results
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Sample Detection Result 1 -->
+                        <div class="space-y-3">
+                            <div class="detection-overlay">
+                                <!-- Busy pedestrian crossing with multiple people -->
+                                <img src="https://pixabay.com/get/g44908aef9ec734445137aa65b24dad40aaeb6a62ded3285918f739f67f9892cfcadfb50c2486b3668c8747754ac66ae85aef5f871ae5350bead7860ac5cf35ab_1280.jpg" 
+                                     alt="Pedestrians crossing street" 
+                                     class="w-full h-48 object-cover rounded-lg" 
+                                     data-mock-image="true" />
+                                <!-- Bounding boxes for detected pedestrians -->
+                                <div class="bounding-box" style="top: 20%; left: 15%; width: 20%; height: 45%;">
+                                    <div class="confidence-badge">92%</div>
+                                </div>
+                                <div class="bounding-box" style="top: 25%; left: 45%; width: 18%; height: 40%;">
+                                    <div class="confidence-badge">89%</div>
+                                </div>
+                                <div class="bounding-box" style="top: 30%; left: 70%; width: 15%; height: 35%;">
+                                    <div class="confidence-badge">84%</div>
+                                </div>
+                            </div>
+                            <div class="text-sm text-muted-foreground">
+                                <p><strong>Detected:</strong> 3 pedestrians</p>
+                                <p><strong>Processing time:</strong> 0.23s</p>
+                            </div>
+                        </div>
+
+                        <!-- Sample Detection Result 2 -->
+                        <div class="space-y-3">
+                            <div class="detection-overlay">
+                                <!-- Urban street scene with pedestrians -->
+                                <img src="https://pixabay.com/get/ge1022a2924ec3a785712fb2ab43dcd03f8e6b15f748c18589c0f73e426e9046a612ee981e9dd6498cee3362ab9a89ed36b3eaff761a1d10d6a9887bccfd79151_1280.jpg" 
+                                     alt="Urban street with pedestrians" 
+                                     class="w-full h-48 object-cover rounded-lg" 
+                                     data-mock-image="true" />
+                                <div class="bounding-box" style="top: 35%; left: 25%; width: 22%; height: 50%;">
+                                    <div class="confidence-badge">95%</div>
+                                </div>
+                                <div class="bounding-box" style="top: 40%; left: 60%; width: 18%; height: 42%;">
+                                    <div class="confidence-badge">91%</div>
+                                </div>
+                            </div>
+                            <div class="text-sm text-muted-foreground">
+                                <p><strong>Detected:</strong> 2 pedestrians</p>
+                                <p><strong>Processing time:</strong> 0.19s</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: Upload Section -->
+
+            <!-- @COMPONENT: Metrics Sidebar -->
+            <div class="space-y-6">
+                <!-- Real-time Metrics -->
+                <div class="metric-card rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center">
+                        <i class="fas fa-chart-line text-accent mr-2"></i>
+                        Performance Metrics
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Accuracy</span>
+                            <span class="text-lg font-bold text-secondary">94.2%</span>
+                        </div>
+                        <div class="w-full bg-muted rounded-full h-2">
+                            <div class="bg-secondary h-2 rounded-full" style="width: 94.2%"></div>
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Precision</span>
+                            <span class="text-lg font-bold text-primary">91.8%</span>
+                        </div>
+                        <div class="w-full bg-muted rounded-full h-2">
+                            <div class="bg-primary h-2 rounded-full" style="width: 91.8%"></div>
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Recall</span>
+                            <span class="text-lg font-bold text-accent">89.5%</span>
+                        </div>
+                        <div class="w-full bg-muted rounded-full h-2">
+                            <div class="bg-accent h-2 rounded-full" style="width: 89.5%"></div>
+                        </div>
+                        
+                        <div class="pt-4 border-t border-border">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-muted-foreground">Avg. Processing Time</span>
+                                <span class="text-sm font-medium text-foreground">0.21s</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-2">
+                                <span class="text-sm text-muted-foreground">Images Processed</span>
+                                <span class="text-sm font-medium text-foreground" data-bind="processedCount">1,247</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detection Statistics -->
+                <div class="metric-card rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center">
+                        <i class="fas fa-users text-secondary mr-2"></i>
+                        Detection Stats
+                    </h3>
+                    
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center p-3 bg-muted rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-walking text-secondary mr-2"></i>
+                                <span class="text-sm text-foreground">Total Pedestrians</span>
+                            </div>
+                            <span class="font-bold text-secondary" data-bind="totalDetections">5,832</span>
+                        </div>
+                        
+                        <div class="flex justify-between items-center p-3 bg-muted rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+                                <span class="text-sm text-foreground">High Risk</span>
+                            </div>
+                            <span class="font-bold text-yellow-500" data-bind="highRiskDetections">23</span>
+                        </div>
+                        
+                        <div class="flex justify-between items-center p-3 bg-muted rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-clock text-accent mr-2"></i>
+                                <span class="text-sm text-foreground">Last 24h</span>
+                            </div>
+                            <span class="font-bold text-accent" data-bind="recentDetections">142</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Information -->
+                <div class="metric-card rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center">
+                        <i class="fas fa-brain text-primary mr-2"></i>
+                        Model Info
+                    </h3>
+                    
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">Architecture</span>
+                            <span class="text-foreground font-medium">YOLOv8</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">Input Size</span>
+                            <span class="text-foreground font-medium">640x640</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">Framework</span>
+                            <span class="text-foreground font-medium">PyTorch</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">Dataset</span>
+                            <span class="text-foreground font-medium">COCO + Custom</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">Parameters</span>
+                            <span class="text-foreground font-medium">11.2M</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: Metrics Sidebar -->
+        </div>
+
+        <!-- @COMPONENT: Dashboard Overview -->
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Autonomous Vehicle Context -->
+            <div class="lg:col-span-2 bg-card rounded-lg border border-border p-6">
+                <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center">
+                    <i class="fas fa-car text-primary mr-2"></i>
+                    Autonomous Vehicle Integration
+                </h3>
+                <div class="relative">
+                    <!-- Autonomous vehicle dashboard view -->
+                    <img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&h=400" 
+                         alt="Autonomous vehicle dashboard interface" 
+                         class="w-full h-40 object-cover rounded-lg" 
+                         data-mock-image="true" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent rounded-lg"></div>
+                    <div class="absolute bottom-4 left-4 right-4">
+                        <p class="text-sm text-foreground font-medium">Real-time pedestrian detection integrated with vehicle navigation and safety systems.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Traffic Analysis -->
+            <div class="bg-card rounded-lg border border-border p-6">
+                <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center">
+                    <i class="fas fa-traffic-light text-accent mr-2"></i>
+                    Traffic Analysis
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-sm text-muted-foreground">Peak Hours</span>
+                        <span class="text-sm font-medium text-foreground">8-9 AM</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-muted-foreground">Crossings/Hour</span>
+                        <span class="text-sm font-medium text-secondary">127</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-muted-foreground">Safety Score</span>
+                        <span class="text-sm font-medium text-primary">9.2/10</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="bg-card rounded-lg border border-border p-6">
+                <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center">
+                    <i class="fas fa-server text-secondary mr-2"></i>
+                    System Status
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-muted-foreground">GPU Usage</span>
+                        <span class="text-sm font-medium text-foreground">76%</span>
+                    </div>
+                    <div class="w-full bg-muted rounded-full h-2">
+                        <div class="bg-primary h-2 rounded-full" style="width: 76%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-muted-foreground">
+                        <span>Memory: 3.2GB</span>
+                        <span>Temp: 67°C</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: Dashboard Overview -->
+
+        <!-- @COMPONENT: Model Explanation -->
+        <div class="mt-8 bg-card rounded-lg border border-border p-6">
+            <h3 class="text-xl font-semibold text-foreground mb-6 flex items-center">
+                <i class="fas fa-graduation-cap text-accent mr-2"></i>
+                Technical Implementation & Model Architecture
+            </h3>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 space-y-6">
+                    <div>
+                        <h4 class="text-lg font-medium text-foreground mb-3">YOLOv8 Architecture</h4>
+                        <p class="text-muted-foreground text-sm leading-relaxed mb-4">
+                            Our pedestrian detection system utilizes YOLOv8 (You Only Look Once version 8), a state-of-the-art real-time object detection model. 
+                            YOLOv8 processes the entire image in a single forward pass, making it ideal for autonomous vehicle applications where speed is critical.
+                        </p>
+                        <div class="bg-muted rounded-lg p-4">
+                            <div class="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <div class="text-2xl font-bold text-primary">640x640</div>
+                                    <div class="text-xs text-muted-foreground">Input Resolution</div>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold text-secondary">53.2 FPS</div>
+                                    <div class="text-xs text-muted-foreground">Processing Speed</div>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold text-accent">11.2M</div>
+                                    <div class="text-xs text-muted-foreground">Parameters</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-medium text-foreground mb-3">Multi-Modal Integration</h4>
+                        <p class="text-muted-foreground text-sm leading-relaxed">
+                            The system integrates multiple data sources including camera feeds, LiDAR data, and radar inputs to provide comprehensive 
+                            pedestrian detection. This multi-modal approach significantly improves detection accuracy in various weather and lighting conditions.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="bg-muted rounded-lg p-4">
+                        <h5 class="font-medium text-foreground mb-2">Key Features</h5>
+                        <ul class="space-y-2 text-sm text-muted-foreground">
+                            <li class="flex items-center"><i class="fas fa-check text-secondary mr-2"></i>Real-time detection</li>
+                            <li class="flex items-center"><i class="fas fa-check text-secondary mr-2"></i>Confidence scoring</li>
+                            <li class="flex items-center"><i class="fas fa-check text-secondary mr-2"></i>Bounding box prediction</li>
+                            <li class="flex items-center"><i class="fas fa-check text-secondary mr-2"></i>Multi-scale detection</li>
+                            <li class="flex items-center"><i class="fas fa-check text-secondary mr-2"></i>Weather adaptation</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="bg-muted rounded-lg p-4">
+                        <h5 class="font-medium text-foreground mb-2">Technologies Used</h5>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="bg-primary/10 text-primary px-2 py-1 rounded text-xs">PyTorch</span>
+                            <span class="bg-secondary/10 text-secondary px-2 py-1 rounded text-xs">OpenCV</span>
+                            <span class="bg-accent/10 text-accent px-2 py-1 rounded text-xs">CUDA</span>
+                            <span class="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded text-xs">TensorRT</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: Model Explanation -->
+    </main>
+
+    <!-- @COMPONENT: Footer -->
+    <footer class="mt-12 border-t border-border bg-card">
+        <div class="container mx-auto px-6 py-6">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="text-sm text-muted-foreground">
+                    <p>&copy; 2024 PedDetect AI - College Research Project</p>
+                    <p>Autonomous Vehicle Pedestrian Detection System</p>
+                </div>
+                <div class="flex items-center space-x-4 mt-4 md:mt-0">
+                    <span class="text-sm text-muted-foreground">Model Version:</span>
+                    <span class="bg-primary/10 text-primary px-2 py-1 rounded text-xs font-medium">v2.1.0</span>
+                    <span class="text-sm text-muted-foreground">|</span>
+                    <span class="text-sm text-muted-foreground">Last Updated: Dec 2024</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <!-- @END_COMPONENT: Footer -->
+
+    <script>
+        // TODO: Implement file upload functionality
+        // TODO: Integrate with backend ML model API
+        // TODO: Add real-time processing capabilities
+        // TODO: Implement batch processing features
+        
+        (function() {
+            // Simulated real-time metrics updates
+            function updateMetrics() {
+                const processedCountElement = document.querySelector('[data-bind="processedCount"]');
+                const totalDetectionsElement = document.querySelector('[data-bind="totalDetections"]');
+                const highRiskElement = document.querySelector('[data-bind="highRiskDetections"]');
+                const recentElement = document.querySelector('[data-bind="recentDetections"]');
+                
+                if (processedCountElement) {
+                    const currentCount = parseInt(processedCountElement.textContent.replace(',', ''));
+                    processedCountElement.textContent = (currentCount + Math.floor(Math.random() * 5)).toLocaleString();
+                }
+                
+                // Simulate live detection updates every 5 seconds
+                setTimeout(updateMetrics, 5000);
+            }
+            
+            // Start metrics simulation
+            updateMetrics();
+            
+            // Handle upload zone interactions
+            const uploadZone = document.querySelector('.upload-zone');
+            if (uploadZone) {
+                uploadZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadZone.style.borderColor = 'var(--primary)';
+                    uploadZone.style.background = 'rgba(37, 99, 235, 0.05)';
+                });
+                
+                uploadZone.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    uploadZone.style.borderColor = 'var(--border)';
+                    uploadZone.style.background = 'transparent';
+                });
+                
+                uploadZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    // TODO: Handle file drop and processing
+                    console.log('Files dropped:', e.dataTransfer.files);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>
